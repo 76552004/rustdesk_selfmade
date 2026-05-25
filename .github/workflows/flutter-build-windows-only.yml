@@ -1,0 +1,105 @@
+﻿name: Flutter Build Windows Only
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'win-[0-9]+.[0-9]+.[0-9]+'
+      - 'w[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  VERSION: "1.4.6"
+
+jobs:
+  generate-bridge:
+    uses: ./.github/workflows/bridge.yml
+
+  build-RustDeskTempTopMostWindow:
+    uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
+    with:
+      upload-artifact: true
+      target: windows-2022
+      configuration: Release
+      platform: x64
+      target_version: Windows10
+    strategy:
+      fail-fast: false
+
+  build-windows:
+    name: windows-x86_64
+    needs: [build-RustDeskTempTopMostWindow, generate-bridge]
+    runs-on: windows-2022
+    env:
+      SCITER_RUST_VERSION: "1.75"
+      RUST_VERSION: "1.75"
+      FLUTTER_VERSION: "3.24.5"
+      LLVM_VERSION: "15.0.6"
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@master
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Replace engine with rustdesk custom flutter engine
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Install vcpkg
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git C:/vcpkg
+          cd C:/vcpkg
+          git checkout ${{ env.VCPKG_COMMIT_ID }}
+          .\bootstrap-vcpkg.bat
+          echo "VCPKG_ROOT=C:/vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build RustDesk
+        run: |
+          cd flutter
+          flutter build windows --release
+
+      - name: Package
+        run: |
+          mkdir rustdesk-${{ env.VERSION }}-windows-x86_64
+          Copy-Item -Recurse flutter/build/windows/x64/runner/Release/* rustdesk-${{ env.VERSION }}-windows-x86_64/
+          Compress-Archive -Path rustdesk-${{ env.VERSION }}-windows-x86_64 -DestinationPath rustdesk-${{ env.VERSION }}-windows-x86_64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-${{ env.VERSION }}-windows-x86_64
+          path: rustdesk-${{ env.VERSION }}-windows-x86_64.zip
