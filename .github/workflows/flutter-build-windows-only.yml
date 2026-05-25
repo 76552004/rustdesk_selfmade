@@ -1,4 +1,4 @@
-﻿name: Flutter Build Windows Only
+name: Flutter Build Windows Only
 
 on:
   workflow_dispatch:
@@ -72,12 +72,25 @@ jobs:
           flutter precache --windows
           Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
           Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
-          mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/
+          mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+
+      - name: Patch flutter
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+          cd $(dirname $(dirname $(which flutter)))
+          [[ "${{ env.FLUTTER_VERSION }}" == 3.24.5 ]] && git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: windows-2022
 
       - name: Install vcpkg
         run: |
@@ -87,16 +100,46 @@ jobs:
           .\bootstrap-vcpkg.bat
           echo "VCPKG_ROOT=C:/vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Install vcpkg dependencies
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          if (! (C:/vcpkg/vcpkg install --triplet x64-windows-static --x-install-root="C:/vcpkg/installed")) {
+            Get-ChildItem -Path C:/vcpkg/ -Recurse -Filter *.log | ForEach-Object {
+              Write-Output "$($_.FullName):"
+              Write-Output "======"
+              Get-Content $_.FullName
+              Write-Output "======"
+            }
+            exit 1
+          }
+        shell: pwsh
+
       - name: Build RustDesk
         run: |
-          cd flutter
-          flutter build windows --release
+          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+
+      - name: Copy topmost window DLL
+        uses: actions/download-artifact@master
+        with:
+          name: topmostwindow-artifacts
+          path: ./rustdesk/
+
+      - name: Download and extract usbmmidd
+        run: |
+          Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
+          Expand-Archive usbmmidd_v2.zip -DestinationPath .
+          Remove-Item -Path usbmmidd_v2\Win32 -Recurse
+          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
+          mv -Force .\usbmmidd_v2 ./rustdesk
 
       - name: Package
         run: |
-          mkdir rustdesk-${{ env.VERSION }}-windows-x86_64
-          Copy-Item -Recurse flutter/build/windows/x64/runner/Release/* rustdesk-${{ env.VERSION }}-windows-x86_64/
-          Compress-Archive -Path rustdesk-${{ env.VERSION }}-windows-x86_64 -DestinationPath rustdesk-${{ env.VERSION }}-windows-x86_64.zip
+          $pkg = "rustdesk-${{ env.VERSION }}-windows-x86_64"
+          New-Item -ItemType Directory -Path $pkg -Force
+          Copy-Item -Recurse ./rustdesk/* $pkg/
+          if (Test-Path "./rustdesk_portable.exe") { Copy-Item ./rustdesk_portable.exe $pkg/ }
+          Compress-Archive -Path $pkg -DestinationPath "$pkg.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
