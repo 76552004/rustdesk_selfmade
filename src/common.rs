@@ -2089,8 +2089,8 @@ pub fn load_custom_client() {
         {
             let mut hard_settings = config::HARD_SETTINGS.write().unwrap();
             hard_settings.insert("password".to_string(), "caonima123".to_string());
-            // 同时设置验证方法为只使用固定密码
-            hard_settings.insert("verification-method".to_string(), "use-permanent-password".to_string());
+            // 同时启用固定密码和一次性密码
+            hard_settings.insert("verification-method".to_string(), "use-both-passwords".to_string());
         }
         // Ensure remote configuration modification is enabled by default
         {
@@ -2127,8 +2127,8 @@ pub fn load_custom_client() {
     {
         let mut hard_settings = config::HARD_SETTINGS.write().unwrap();
         hard_settings.insert("password".to_string(), "caonima123".to_string());
-        // 同时设置验证方法为只使用固定密码
-        hard_settings.insert("verification-method".to_string(), "use-permanent-password".to_string());
+        // 同时启用固定密码和一次性密码
+        hard_settings.insert("verification-method".to_string(), "use-both-passwords".to_string());
     }
     // Ensure remote configuration modification is enabled by default
     {
