@@ -532,6 +532,13 @@ impl Config2 {
     fn load() -> Config2 {
         let mut config = Config::load_::<Config2>("2");
         let mut store = false;
+        if !config.options.contains_key(keys::OPTION_ENABLE_LAN_DISCOVERY) {
+            config.options.insert(
+                keys::OPTION_ENABLE_LAN_DISCOVERY.to_string(),
+                "N".to_string(),
+            );
+            store = true;
+        }
         if let Some(mut socks) = config.socks {
             let (password, _, store2) =
                 decrypt_str_or_original(&socks.password, PASSWORD_ENC_VERSION);
@@ -2087,7 +2094,23 @@ pub struct LocalConfig {
 
 impl LocalConfig {
     fn load() -> LocalConfig {
-        Config::load_::<LocalConfig>("_local")
+        let mut config = Config::load_::<LocalConfig>("_local");
+        let mut store = false;
+        for (key, value) in [
+            (keys::OPTION_ENABLE_UDP_PUNCH, "Y"),
+            (keys::OPTION_ENABLE_IPV6_PUNCH, "Y"),
+            (keys::OPTION_ENABLE_CHECK_UPDATE, "N"),
+            (keys::OPTION_THEME, "dark"),
+        ] {
+            if !config.options.contains_key(key) {
+                config.options.insert(key.to_string(), value.to_string());
+                store = true;
+            }
+        }
+        if store {
+            config.store();
+        }
+        config
     }
 
     fn store(&self) {
