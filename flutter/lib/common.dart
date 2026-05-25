@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -3091,11 +3091,14 @@ Future<bool> callMainCheckSuperUserPermission() async {
 }
 
 Future<void> start_service(bool is_start) async {
-  bool checked = !bind.mainIsInstalled() ||
-      !isMacOS ||
-      await callMainCheckSuperUserPermission();
-  if (checked) {
-    mainSetBoolOption(kOptionStopService, !is_start);
+  if (!is_start) {
+    mainSetBoolOption(kOptionStopService, true);
+    return;
+  }
+  if (!bind.mainIsInstalled()) {
+    bind.mainGotoInstall();
+  } else {
+    mainSetBoolOption(kOptionStopService, false);
   }
 }
 

