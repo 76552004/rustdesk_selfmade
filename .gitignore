@@ -51,6 +51,7 @@ lib/generated_bridge.dart
 .devcontainer/.*
 # build cache in examples
 examples/**/target/
+sos_patches/
 # ===
 vcpkg_installed
 flutter/lib/generated_plugin_registrant.dart

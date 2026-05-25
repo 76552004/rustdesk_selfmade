@@ -3095,9 +3095,14 @@ Future<void> start_service(bool is_start) async {
     mainSetBoolOption(kOptionStopService, true);
     return;
   }
-  if (!bind.mainIsInstalled()) {
+  if (!bind.mainIsInstalled() && isWindows) {
     bind.mainGotoInstall();
-  } else {
+    return;
+  }
+  bool checked = !bind.mainIsInstalled() ||
+      !isMacOS ||
+      await callMainCheckSuperUserPermission();
+  if (checked) {
     mainSetBoolOption(kOptionStopService, false);
   }
 }

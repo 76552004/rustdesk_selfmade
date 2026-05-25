@@ -195,21 +195,6 @@ Effect:
 - First character must be a letter or number (no _ or -).
 - Pure numbers, pure letters, or mixed all allowed.
 
-
-File: `libs/hbb_common/src/lib.rs`
-
-```rust
-// before
-r#"^[a-zA-Z][\w-]{5,15}$"#
-// after
-r#"^[a-zA-Z0-9]{6,16}$"#
-```
-
-Effect:
-
-- 6-16 characters, English letters and digits only.
-- Pure numbers and pure letters are allowed.
-- No requirement to start with a letter.
 ## Notes For Future AI Changes
 
 - Re-apply changes by file and option key, not only by line number, because upstream RustDesk line numbers change often.
