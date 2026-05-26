@@ -176,25 +176,6 @@ Effect:
 - If installation fails (e.g., antivirus), a toast "Installation failed" is shown.
 - SOS version is not affected (`disable-installation` blocks installation flow).
 
-### 8. Relaxed custom ID format
-
-Files: `libs/hbb_common/src/lib.rs`, `flutter/lib/common/widgets/dialog.dart`
-
-```rust
-// before
-r#"^[a-zA-Z][\w-]{5,15}$"#
-// after
-r#"^[a-zA-Z0-9][a-zA-Z0-9_-]{5,15}$"#
-```
-
-UI validation updated: first char rule changed from "starts with a letter" to "starts with a letter or number".
-
-Effect:
-
-- 6-16 characters, letters and digits, underscore and hyphen allowed after first char.
-- First character must be a letter or number (no _ or -).
-- Pure numbers, pure letters, or mixed all allowed.
-
 ## Notes For Future AI Changes
 
 - Re-apply changes by file and option key, not only by line number, because upstream RustDesk line numbers change often.
