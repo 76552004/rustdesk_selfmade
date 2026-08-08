@@ -1,0 +1,169 @@
+name: Build Intel macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - build.py
+      - .github/workflows/flutter-build-macos-intel.yml
+
+env:
+  MAC_RUST_VERSION: "1.81"
+  FLUTTER_VERSION: "3.24.5"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VERSION: "1.4.6"
+
+jobs:
+  generate-bridge:
+    uses: ./.github/workflows/bridge.yml
+
+  build-intel-macos:
+    name: x86_64-apple-darwin
+    needs:
+      - generate-bridge
+    runs-on: macos-15-intel
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build runtime
+        run: |
+          brew install llvm create-dmg
+          if command -v pkg-config &>/dev/null; then
+            echo "pkg-config is already installed"
+          else
+            brew install pkg-config
+          fi
+
+      - name: Install NASM
+        run: |
+          wget https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/macosx/nasm-2.16.03-macosx.zip
+          unzip nasm-2.16.03-macosx.zip
+          sudo cp nasm-2.16.03/nasm /usr/local/bin/nasm
+          nasm --version
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Patch Flutter
+        run: |
+          cd "$(dirname "$(dirname "$(which flutter)")")"
+          if [[ "${{ env.FLUTTER_VERSION }}" == "3.24.5" ]]; then
+            git apply "${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+          fi
+
+      - name: Apply Flutter scheduler workaround
+        shell: bash
+        run: |
+          cd "$(dirname "$(which flutter)")"
+          sed -i -e 's/_setFramesEnabledState(false);/\/\/_setFramesEnabledState(false);/g' ../packages/flutter/lib/src/scheduler/binding.dart
+          grep -n '_setFramesEnabledState(false);' ../packages/flutter/lib/src/scheduler/binding.dart
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.MAC_RUST_VERSION }}
+          targets: x86_64-apple-darwin
+          components: rustfmt
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: macos-15-intel
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        run: |
+          if ! "$VCPKG_ROOT/vcpkg" install --x-install-root="$VCPKG_ROOT/installed"; then
+            find "$VCPKG_ROOT" -name "*.log" -print -exec tail -n 200 {} \;
+            exit 1
+          fi
+
+      - name: Build RustDesk
+        run: |
+          ./build.py --flutter --hwcodec --unix-file-copy-paste
+
+      - name: Verify Intel app architecture and code signature
+        shell: bash
+        run: |
+          APP="./flutter/build/macos/Build/Products/Release/RustDesk.app"
+          MAIN="$APP/Contents/MacOS/RustDesk"
+          SERVICE="$APP/Contents/MacOS/service"
+          RUST_DYLIB="$APP/Contents/Frameworks/liblibrustdesk.dylib"
+
+          test "$(/usr/bin/lipo -archs "$MAIN")" = "x86_64"
+          test "$(/usr/bin/lipo -archs "$SERVICE")" = "x86_64"
+          test "$(/usr/bin/lipo -archs "$RUST_DYLIB")" = "x86_64"
+          /usr/bin/file "$MAIN" "$SERVICE" "$RUST_DYLIB"
+          /usr/bin/codesign --verify --deep --strict --verbose=4 "$APP"
+
+      - name: Create Intel macOS DMG
+        shell: bash
+        run: |
+          CREATE_DMG="$(command -v create-dmg)"
+          CREATE_DMG="$(readlink -f "$CREATE_DMG")"
+          sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
+          create-dmg \
+            --icon "RustDesk.app" 200 190 \
+            --hide-extension "RustDesk.app" \
+            --window-size 800 400 \
+            --app-drop-link 600 185 \
+            "rustdesk-${{ env.VERSION }}-x86_64.dmg" \
+            ./flutter/build/macos/Build/Products/Release/RustDesk.app
+
+      - name: Verify packaged DMG
+        shell: bash
+        run: |
+          DMG="rustdesk-${{ env.VERSION }}-x86_64.dmg"
+          MOUNT_DIR="$(mktemp -d)"
+
+          cleanup() {
+            hdiutil detach "$MOUNT_DIR" >/dev/null 2>&1 || true
+            rmdir "$MOUNT_DIR" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          hdiutil verify "$DMG"
+          hdiutil attach -readonly -nobrowse -mountpoint "$MOUNT_DIR" "$DMG"
+          test "$(/usr/bin/lipo -archs "$MOUNT_DIR/RustDesk.app/Contents/MacOS/RustDesk")" = "x86_64"
+          test "$(/usr/bin/lipo -archs "$MOUNT_DIR/RustDesk.app/Contents/MacOS/service")" = "x86_64"
+          test "$(/usr/bin/lipo -archs "$MOUNT_DIR/RustDesk.app/Contents/Frameworks/liblibrustdesk.dylib")" = "x86_64"
+          /usr/bin/codesign --verify --deep --strict --verbose=4 "$MOUNT_DIR/RustDesk.app"
+
+          hdiutil detach "$MOUNT_DIR"
+          rmdir "$MOUNT_DIR"
+          trap - EXIT
+
+      - name: Upload Intel macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-${{ env.VERSION }}-macos-x86_64
+          path: rustdesk-${{ env.VERSION }}-x86_64.dmg
+          if-no-files-found: error
+          retention-days: 90

@@ -176,6 +176,34 @@ Effect:
 - If installation fails (e.g., antivirus), a toast "Installation failed" is shown.
 - SOS version is not affected (`disable-installation` blocks installation flow).
 
+### 8. Keep unsigned macOS packages internally code-signed
+
+Files:
+
+- `build.py`
+- `.github/workflows/flutter-build-macos-intel.yml`
+
+After Flutter creates and ad-hoc signs `RustDesk.app`, `build.py` copies the
+`service` executable into `Contents/MacOS`. Adding that executable used to
+invalidate the existing app seal. The build now re-signs the completed bundle
+while preserving its entitlements, then requires a strict deep verification to
+pass before packaging.
+
+A dedicated GitHub Actions workflow builds only `x86_64-apple-darwin` on the
+Intel macOS runner. It checks the architecture of the main executable, service,
+and Rust dynamic library, verifies the app before and after DMG creation, and
+uploads `rustdesk-1.4.6-x86_64.dmg`.
+
+Effect:
+
+- The free unsigned DMG no longer produces a broken `file added: .../service`
+  signature.
+- A future Developer ID signature and notarization can replace the ad-hoc
+  signature without changing the build.
+- Because this free build is not Apple-notarized, first launch still requires
+  right-clicking the app and choosing **Open**, or using
+  **System Settings → Privacy & Security → Open Anyway**.
+
 ## Notes For Future AI Changes
 
 - Re-apply changes by file and option key, not only by line number, because upstream RustDesk line numbers change often.
