@@ -1909,10 +1909,13 @@ Future<Size> _adjustRestoreMainWindowSize(double? width, double? height) async {
   double restoreWidth = width ?? defaultWidth;
   double restoreHeight = height ?? defaultHeight;
 
-  if (restoreWidth < minWidth) {
+  // A persisted 1x1 window can leave the macOS UI invisible after a
+  // display change. Treat the boundary value as invalid and restore the
+  // normal desktop size.
+  if (restoreWidth <= minWidth) {
     restoreWidth = defaultWidth;
   }
-  if (restoreHeight < minHeight) {
+  if (restoreHeight <= minHeight) {
     restoreHeight = defaultHeight;
   }
   if (restoreWidth > maxWidth) {
