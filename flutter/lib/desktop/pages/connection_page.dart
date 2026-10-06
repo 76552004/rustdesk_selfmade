@@ -10,6 +10,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/widgets/popup_menu.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 
@@ -33,10 +34,20 @@ class OnlineStatusWidget extends StatefulWidget {
 /// State for the connection page.
 class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   final _svcStopped = Get.find<RxBool>(tag: 'stop-service');
+  final _svcIsUsingPublicServer = true.obs;
   Timer? _updateTimer;
 
   double get em => 14.0;
   double? get height => bind.isIncomingOnly() ? null : em * 3;
+
+  void onUsePublicServerGuide() {
+    const url = "https://rustdesk.com/pricing";
+    canLaunchUrlString(url).then((can) {
+      if (can) {
+        launchUrlString(url);
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -67,6 +78,37 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
               .marginOnly(left: em),
         );
 
+    setupServerWidget() => Flexible(
+          child: Offstage(
+            offstage: !(!_svcStopped.value &&
+                stateGlobal.svcStatus.value == SvcStatus.ready &&
+                _svcIsUsingPublicServer.value),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(', ', style: TextStyle(fontSize: em)),
+                Flexible(
+                  child: InkWell(
+                    onTap: onUsePublicServerGuide,
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            translate('setup_server_tip'),
+                            style: TextStyle(
+                                decoration: TextDecoration.underline,
+                                fontSize: em),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              ],
+            ),
+          ),
+        );
+
     basicWidget() => Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -89,6 +131,9 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
             ),
             // stop
             if (!isIncomingOnly) startServiceWidget(),
+            // ready && public
+            // No need to show the guide if is custom client.
+            if (!isIncomingOnly) setupServerWidget(),
           ],
         );
 
@@ -135,6 +180,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
     } else {
       stateGlobal.svcStatus.value = SvcStatus.notReady;
     }
+    _svcIsUsingPublicServer.value = await bind.mainIsUsingPublicServer();
     try {
       stateGlobal.videoConnCount.value = status['video_conn_count'] as int;
     } catch (_) {}
@@ -284,12 +330,14 @@ class _ConnectionPageState extends State<ConnectionPage>
   void onConnect(
       {bool isFileTransfer = false,
       bool isViewCamera = false,
-      bool isTerminal = false}) {
+      bool isTerminal = false,
+      bool isTcpTunneling = false}) {
     var id = _idController.id;
     connect(context, id,
         isFileTransfer: isFileTransfer,
         isViewCamera: isViewCamera,
-        isTerminal: isTerminal);
+        isTerminal: isTerminal,
+        isTcpTunneling: isTcpTunneling);
   }
 
   /// UI for the remote ID TextField.
@@ -352,6 +400,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                                   .contains(textToFind) ||
                               peer.alias.toLowerCase().contains(textToFind))
                           .toList();
+                      _allPeersLoader.queryOnlines(_autocompleteOpts);
                     }
                     return _autocompleteOpts;
                   },
@@ -521,6 +570,14 @@ class _ConnectionPageState extends State<ConnectionPage>
                                       '${translate('Terminal')} (beta)',
                                       () => onConnect(isTerminal: true)
                                     ),
+                                    // `connect` routes this through the
+                                    // desktop path only; the peer card gates
+                                    // it the same way.
+                                    if (isDesktop)
+                                      (
+                                        'TCP tunneling',
+                                        () => onConnect(isTcpTunneling: true)
+                                      ),
                                   ]
                                       .map((e) => MenuEntryButton<String>(
                                             childBuilder: (TextStyle? style) =>
