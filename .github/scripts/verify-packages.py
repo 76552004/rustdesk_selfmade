@@ -87,7 +87,7 @@ try:
                     command("ostree", "--repo=" + repo, "ls", ref, "/files/bin/rustdesk")
         elif args.kind == "ios":
             if package.suffix == ".a":
-                command("lipo", "-verify_arch", "arm64", str(package))
+                command("lipo", str(package), "-verify_arch", "arm64")
             elif package.suffix == ".zip":
                 with zipfile.ZipFile(package) as archive:
                     assert archive.testzip() is None

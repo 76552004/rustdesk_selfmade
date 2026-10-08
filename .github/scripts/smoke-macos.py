@@ -34,7 +34,7 @@ try:
                     result = subprocess.run([str(helper.resolve()), *pids], capture_output=True, text=True, check=True)
                     windows = json.loads(result.stdout)
                     snapshots.append(windows)
-                    valid = any(w.get("kCGWindowBounds", {}).get("Width", 0) >= 900 and
+                    valid = any(w.get("kCGWindowBounds", {}).get("Width", 0) >= 800 and
                                 w.get("kCGWindowBounds", {}).get("Height", 0) >= 500 for w in windows)
                     if valid:
                         break
