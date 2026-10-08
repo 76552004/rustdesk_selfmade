@@ -1,0 +1,42 @@
+# Custom build derived from official RustDesk 1.5.0. See CUSTOM_MODIFICATIONS.md.
+---
+name: Build custom RustDesk 1.5.0 clients
+'on':
+  push:
+    branches:
+    - codex/rebuild-rustdesk-1.5.0
+  workflow_dispatch: 
+permissions:
+  contents: read
+concurrency:
+  group: custom-rustdesk-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  source-checks:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      with:
+        submodules: recursive
+    - name: Check submitted workflow and scripts on GitHub
+      shell: bash
+      run: |
+        mkdir -p diagnostics
+        curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz | tar -xz -C "$RUNNER_TEMP" actionlint
+        "$RUNNER_TEMP/actionlint" -shellcheck='' .github/workflows/custom-client.yml .github/workflows/flutter-build-custom.yml .github/workflows/bridge-custom.yml .github/workflows/third-party-RustDeskTempTopMostWindow-custom.yml 2>&1 | tee diagnostics/workflow-check.log
+        python3 -m py_compile .github/scripts/smoke-macos.py .github/scripts/collect-build-diagnostics.py .github/scripts/verify-packages.py
+        python3 .github/scripts/check-custom-source.py 2>&1 | tee diagnostics/source-check.log
+    - name: Upload diagnostics-source-checks
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: diagnostics-source-checks
+        path: diagnostics
+        retention-days: 90
+        if-no-files-found: error
+      if: "${{ always() }}"
+  build-clients:
+    needs: source-checks
+    uses: "./.github/workflows/flutter-build-custom.yml"
+    with:
+      upload-artifact: true
+    secrets: inherit

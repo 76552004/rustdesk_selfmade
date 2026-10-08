@@ -2583,7 +2583,9 @@ impl Connection {
                     print_fallback();
                     return true;
                 }
-            } else {
+            }
+            // The preset remains valid alongside a personal permanent password.
+            {
                 let (hard, salt) = Config::get_preset_password_storage_and_salt();
                 if preset_permanent_password_storage_is_usable_for_auth(&hard, &salt)
                     && self.validate_preset_password_storage(&hard, &salt)
@@ -7951,3 +7953,7 @@ mod test {
         assert!(!replaced_by(&conn(3, remote, key(7, "other")), 2, &mine));
     }
 }
+
+#[cfg(all(test, not(any(target_os = "android", target_os = "ios"))))]
+#[path = "custom_migration_tests.rs"]
+mod custom_migration_tests;
