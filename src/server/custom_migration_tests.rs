@@ -59,7 +59,7 @@ fn accepts(conn: &mut Connection, candidate: &str) -> bool {
     let mut second = Sha256::new();
     second.update(first.finalize());
     second.update(conn.hash.challenge.as_bytes());
-    conn.lr.password = second.finalize().to_vec();
+    conn.lr.password = second.finalize().to_vec().into();
     conn.validate_password(false)
 }
 

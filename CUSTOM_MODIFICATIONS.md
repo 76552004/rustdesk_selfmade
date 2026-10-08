@@ -74,3 +74,15 @@ iOS 沿用 `--no-codesign`，ZIP 内为应用归档，需自行签名后安装�
 | `flutter/lib/common.dart` | Windows 安装入口及 1×1 窗口恢复 |
 
 其余实现、测试和定制工作流为新增文件；没有重构共享接口或修改官方子模块。
+
+## 2026-10-08 macOS 云编译失败修复
+
+上一轮 Actions `37720342709` 的 Apple Silicon 和 Intel 应用已完成编译及临时签名验证，但在生成 DMG 前被新增校验脚本阻断。
+
+- 修正 `verify-macos.sh` 中全部 `lipo` 调用，使用 `lipo "$file" -verify_arch "$arch"`；原调用把程序路径当成了架构参数。
+- 按官方 1.5.0 Xcode 工程及实际应用内容检查 `liblibrustdesk.dylib`；原脚本误查 `librustdesk.dylib`。保持动态库存在、架构及签名检查。
+- 修正云端密码回归测试的 protobuf 字节字段赋值：将 `Vec<u8>` 转为新版 `Bytes`，使测试能编译并检查真实验证路径；未修改生产密码认证逻辑。
+- iOS 归档中的同类 `lipo` 参数顺序一并修正。
+- 源码预检增加 shell 语法检查；完整 macOS 签名输出保存为 `diagnostics/macos-signing.log`。继续验证主程序、服务、框架、最终 DMG 和干净/旧窗口配置。
+
+修复通过 GitHub 提交并触发原构建矩阵。此记录不表示本次云编译或实际安装测试已经成功。本机不编译或运行客户端。

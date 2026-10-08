@@ -13,20 +13,23 @@ version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/C
 [[ "$version" == "1.5.0" ]]
 for code in "$app/Contents/MacOS/$main" "$app/Contents/MacOS/service"; do
   test -f "$code"
-  lipo -verify_arch "$arch" "$code"
+  lipo "$code" -verify_arch "$arch"
   file "$code"
   otool -L "$code"
 done
 count=0
 while IFS= read -r -d '' library; do
-  lipo -verify_arch "$arch" "$library"
+  lipo "$library" -verify_arch "$arch"
   otool -L "$library"
   count=$((count + 1))
-done < <(find "$app/Contents" -type f -name 'librustdesk.dylib' -print0)
-[[ "$count" -ge 1 ]]
+done < <(find "$app/Contents" -type f -name 'liblibrustdesk.dylib' -print0)
+if [[ "$count" -lt 1 ]]; then
+  echo "Missing RustDesk core library: Contents/Frameworks/liblibrustdesk.dylib" >&2
+  exit 1
+fi
 while IFS= read -r -d '' code; do
   if file -b "$code" | grep -q 'Mach-O'; then
-    lipo -verify_arch "$arch" "$code"
+    lipo "$code" -verify_arch "$arch"
     codesign --verify --strict "$code"
   fi
 done < <(find "$app/Contents/Frameworks" -type f -print0)

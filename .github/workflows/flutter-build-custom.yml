@@ -590,7 +590,7 @@ jobs:
         main=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")
         version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist")
         [[ "$version" == '1.5.0' ]]
-        lipo -verify_arch arm64 "$app/$main"
+        lipo "$app/$main" -verify_arch arm64
         ditto -c -k --sequesterRsrc --keepParent "$archive" rustdesk-1.5.0-ios-aarch64-unsigned.zip
         python3 .github/scripts/verify-packages.py ios aarch64 'target/aarch64-apple-ios/release/liblibrustdesk.a' 'rustdesk-1.5.0-ios-aarch64-unsigned.zip'
     - name: Upload rustdesk-1.5.0-ios-aarch64-unsigned
@@ -756,7 +756,7 @@ jobs:
       shell: bash
       run: |
         app=./flutter/build/macos/Build/Products/Release/RustDesk.app
-        bash .github/scripts/sign-macos-app.sh "$app" - flutter/macos/Runner/Release.entitlements
+        bash .github/scripts/sign-macos-app.sh "$app" - flutter/macos/Runner/Release.entitlements 2>&1 | tee diagnostics/macos-signing.log
         arch='${{ matrix.job.arch }}'
         [[ "$arch" != aarch64 ]] || arch=arm64
         bash .github/scripts/verify-macos.sh "$app" "$arch" 2>&1 | tee diagnostics/macos-app-verification.log

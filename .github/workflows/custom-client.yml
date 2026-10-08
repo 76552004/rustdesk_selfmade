@@ -24,6 +24,8 @@ jobs:
         mkdir -p diagnostics
         curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz | tar -xz -C "$RUNNER_TEMP" actionlint
         "$RUNNER_TEMP/actionlint" -shellcheck='' .github/workflows/custom-client.yml .github/workflows/flutter-build-custom.yml .github/workflows/bridge-custom.yml .github/workflows/third-party-RustDeskTempTopMostWindow-custom.yml 2>&1 | tee diagnostics/workflow-check.log
+        bash -n .github/scripts/sign-macos-app.sh
+        bash -n .github/scripts/verify-macos.sh
         python3 -m py_compile .github/scripts/smoke-macos.py .github/scripts/collect-build-diagnostics.py .github/scripts/verify-packages.py
         python3 .github/scripts/check-custom-source.py 2>&1 | tee diagnostics/source-check.log
     - name: Upload diagnostics-source-checks
