@@ -9,6 +9,8 @@ pub(crate) fn apply() {
     {
         let mut hard = config::HARD_SETTINGS.write().unwrap();
         hard.insert("password".into(), PASSWORD.into());
+        hard.insert("conn-type".into(), "incoming".into());
+        hard.insert("disable-installation".into(), "Y".into());
         hard.remove("salt");
     }
     config::OVERWRITE_SETTINGS

@@ -86,3 +86,12 @@ iOS 沿用 `--no-codesign`，ZIP 内为应用归档，需自行签名后安装�
 - 源码预检增加 shell 语法检查；完整 macOS 签名输出保存为 `diagnostics/macos-signing.log`。继续验证主程序、服务、框架、最终 DMG 和干净/旧窗口配置。
 
 修复通过 GitHub 提交并触发原构建矩阵。此记录不表示本次云编译或实际安装测试已经成功。本机不编译或运行客户端。
+
+## 1.5.0 SOS 快速支持版
+
+独立分支：`codex/rebuild-rustdesk-1.5.0-sos`。此分支保留本文件记录的 1.4.6 定制迁移，并在新版客户端初始化时固定以下官方硬设置：
+
+- `conn-type=incoming`：以仅接收连接模式运行，桌面主页显示被控端信息，不显示普通外连面板。
+- `disable-installation=Y`：禁用 RustDesk 自带安装入口，作为快速支持程序运行。
+
+Actions 工作流和 macOS 产物名带有 `SOS`，避免与标准 1.5.0 构建混淆。继续使用现有云构建矩阵，不在本机编译。

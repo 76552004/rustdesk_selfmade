@@ -788,7 +788,7 @@ jobs:
       if: env.UPLOAD_ARTIFACT == 'true'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
-        name: rustdesk-1.5.0-macos-${{ matrix.job.arch }}
+        name: rustdesk-1.5.0-sos-macos-${{ matrix.job.arch }}
         path: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg
         retention-days: 90
         if-no-files-found: error
